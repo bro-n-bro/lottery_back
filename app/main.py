@@ -1,7 +1,7 @@
 # main.py
 import random
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
@@ -10,7 +10,7 @@ from app.db import models
 from app.db.database import get_db
 from app.schemas.lottery import LotteryCreate
 from app.services.initial_delegator_service import participate, fetch_delegators_data
-from app.services.lottery_service import create_lottery
+from app.services.lottery_service import create_lottery, get_lottery_info_by_address
 
 app = FastAPI()
 
@@ -73,6 +73,13 @@ def populate_delegators(db: Session = Depends(get_db)):
     else:
         return {"message": "Delegators table is not empty. No action taken."}
 
+@app.get("/lottery/current/{address}/info")
+async def get_lottery_info_api(address: str, db: Session = Depends(get_db)):
+    try:
+        lottery_info = get_lottery_info_by_address(address, db)
+        return lottery_info
+    except HTTPException as e:
+        raise e
 
 async def lifespan(app: FastAPI):
     celery_app.start()
