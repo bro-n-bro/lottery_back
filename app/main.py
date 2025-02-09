@@ -3,6 +3,7 @@ import random
 
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from starlette import status
 
 from app.core.celery_app import celery_app
 from app.core.dependencies import verify_token
@@ -10,7 +11,8 @@ from app.db import models
 from app.db.database import get_db
 from app.schemas.lottery import LotteryCreate
 from app.services.initial_delegator_service import participate, fetch_delegators_data
-from app.services.lottery_service import create_lottery, get_lottery_info_by_address
+from app.services.lottery_service import create_lottery, get_lottery_info_by_address, \
+    get_addresses_participating_in_lottery, draw_lottery, get_lotteries_with_winners
 
 app = FastAPI()
 
@@ -80,6 +82,30 @@ async def get_lottery_info_api(address: str, db: Session = Depends(get_db)):
         return lottery_info
     except HTTPException as e:
         raise e
+
+
+@app.get("/lottery/participants")
+async def get_lottery_addresses(db: Session = Depends(get_db)):
+    try:
+        addresses = get_addresses_participating_in_lottery(db)  # Вызовем функцию, получающую адреса
+        return {"addresses": addresses}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/draw_lottery", response_model=dict)
+async def draw_lottery_endpoint(
+    db: Session = Depends(get_db),
+    token: str = Depends(verify_token)
+):
+    try:
+        result = draw_lottery(db)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 
 async def lifespan(app: FastAPI):
     celery_app.start()

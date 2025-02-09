@@ -1,3 +1,6 @@
+import logging
+import random
+
 from sqlalchemy.orm import Session, aliased
 from app.db import models
 from fastapi import HTTPException
@@ -96,3 +99,119 @@ def get_lottery_info_by_address(address: str, db: Session):
         "tickets": tickets,
         "win_probability": win_probability,
     }
+
+
+def get_addresses_participating_in_lottery(db):
+    delegators_alias = aliased(models.Delegator)
+    initial_delegators_alias = aliased(models.InitialDelegator)
+
+    subquery = (
+        db.query(
+            delegators_alias.address,
+            ((delegators_alias.amount - initial_delegators_alias.amount) // 10).label('ticket_count')
+        )
+        .join(
+            initial_delegators_alias,
+            delegators_alias.address == initial_delegators_alias.address
+        )
+        .filter(initial_delegators_alias.is_participate == True)
+        .distinct(delegators_alias.address)
+        .order_by(delegators_alias.address, delegators_alias.timestamp.desc())
+        .subquery()
+    )
+
+    result = db.query(subquery.c.address, subquery.c.ticket_count).all()
+
+    addresses = []
+    for address, ticket_count in result:
+        addresses.extend([address] * ticket_count)
+
+    return addresses
+
+
+def draw_lottery(db):
+    addresses = get_addresses_participating_in_lottery(db)
+
+    lottery = db.query(models.Lottery).filter(models.Lottery.is_finished == False).first()
+    if not lottery:
+        raise ValueError("No active lottery.")
+
+    winners_count = min(lottery.winners_count,len(set(addresses)))
+
+    weighted_addresses = []
+    for address in addresses:
+        weighted_addresses.append(address)
+    random.shuffle(weighted_addresses)
+    main_winner = weighted_addresses[0]
+    winners = []
+    seen = set()
+    for address in weighted_addresses:
+        if address not in seen:
+            winners.append(address)
+            seen.add(address)
+        if len(winners) == winners_count:
+            break
+
+    lottery.is_finished = True
+    db.commit()
+
+    winners_objects = []
+    for i, address in enumerate(winners):
+        initial_delegator = db.query(models.InitialDelegator).filter(models.InitialDelegator.address == address).first()
+        is_main = (address == main_winner)
+        winner = models.Winner(
+            lottery_id=lottery.id,
+            initial_delegator_id=initial_delegator.id,
+            is_main=is_main
+        )
+        winners_objects.append(winner)
+
+    db.add_all(winners_objects)
+    db.commit()
+
+    result = {
+        "lottery_id": lottery.id,
+        "is_finished": lottery.is_finished,
+        "winners": [
+            {"address": winner.initial_delegator.address, "is_main": winner.is_main}
+            for winner in winners_objects
+        ]
+    }
+
+    return result
+
+
+def get_lotteries_with_winners(db: Session):
+    try:
+        lotteries = db.query(models.Lottery).all()
+
+        lottery_with_winners = []
+        for lottery in lotteries:
+            winners = (
+                db.query(models.Winner, models.InitialDelegator.address)
+                .join(models.InitialDelegator, models.Winner.initial_delegator_id == models.InitialDelegator.id)
+                .filter(models.Winner.lottery_id == lottery.id)
+                .all()
+            )
+
+            winners_response = []
+            for winner, address in winners:
+                winner_data = {
+                    "address": address,
+                    "is_main": winner.is_main,
+                }
+                winners_response.append(winner_data)
+
+            lottery_data = {
+                "id": lottery.id,
+                "winners_count": lottery.winners_count,
+                "start_at": lottery.start_at,
+                "created_at": lottery.created_at,
+                "is_finished": lottery.is_finished,
+                "winners": winners_response,
+            }
+            lottery_with_winners.append(lottery_data)
+        return lottery_with_winners
+
+    except Exception as e:
+        raise Exception(f"Error: {str(e)}")
