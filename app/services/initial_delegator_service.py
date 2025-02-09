@@ -29,7 +29,6 @@ def fetch_delegators_data(db: Session):
         delegator_address = delegation.delegation.delegator_address
         amount = int(delegation.balance.amount) / 1_000_000  # Преобразуем uatom в ATOM
 
-        # Проверяем, есть ли такой делегатор в базе
         existing_delegator = db.query(models.InitialDelegator).filter(
             models.InitialDelegator.address == delegator_address).first()
 

@@ -6,4 +6,4 @@ class LotteryCreate(BaseModel):
     start_at: datetime
 
     class Config:
-        orm_mode = True  # Для работы с SQLAlchemy моделями
+        orm_mode = True

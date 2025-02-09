@@ -1,10 +1,9 @@
 from celery import Celery
 
-# Создание объекта Celery
 celery_app = Celery(
     "delegators",
-    broker=f"redis://localhost:6379/0",  # Укажите путь к вашему Redis
-    backend="redis://localhost:6379/0",  # Настройка для хранения результатов
+    broker=f"redis://localhost:6379/0",
+    backend="redis://localhost:6379/0",
 )
 
 celery_app.conf.imports = ("app.tasks.tasks",)

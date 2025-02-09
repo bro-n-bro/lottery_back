@@ -6,10 +6,13 @@ from cosmpy.protos.cosmos.staking.v1beta1.query_pb2 import QueryDelegatorDelegat
 from cosmpy.protos.cosmos.staking.v1beta1.query_pb2_grpc import QueryStub
 from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageResponse, PageRequest
 
+from app.core.config import settings
+
+
 def get_delegators_from_cosmos():
     cosmos_config = NetworkConfig(
         chain_id="cosmoshub-4",
-        url="grpc+https://grpc.cosmoshub-4.bronbro.io:443",
+        url=settings.GRPC_ADDRESS,
         fee_minimum_gas_price=0.01,
         fee_denomination="uatom",
         staking_denomination="uatom",
@@ -21,12 +24,10 @@ def get_delegators_from_cosmos():
     latest_block = client.query_latest_block()
     print("Latest Block:", latest_block)
 
-    # Подключение к gRPC серверу
-    channel = grpc.insecure_channel("grpc+https://grpc.cosmoshub-4.bronbro.io:443")
-    staking_client = QueryStub(channel)
+    channel = grpc.insecure_channel(settings.GRPC_ADDRESS)
+    QueryStub(channel)
 
-    # Адрес валидатора
-    validator_address = "cosmosvaloper106yp7zw35wftheyyv9f9pe69t8rteumjrx52jg"  # Укажите адрес нужного валидатора
+    validator_address = "cosmosvaloper106yp7zw35wftheyyv9f9pe69t8rteumjrx52jg"
 
     pagination = PageRequest(limit=500)
     delegators = []

@@ -7,7 +7,6 @@ from app.services.general import get_delegators_from_cosmos
 
 @shared_task
 def sync_delegators():
-    """Задача, которая раз в час получает делегаторов и записывает в базу."""
     db: Session = SessionLocal()
 
     try:
@@ -25,8 +24,8 @@ def sync_delegators():
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Ошибка при обновлении делегаторов: {e}")
+        print(f"Error while getting validators: {e}")
     finally:
         db.close()
 
-    return f"Добавлено {len(delegators)} делегаторов в таблицу Delegator."
+    return f"Added {len(delegators)} delegators to  Delegator."
