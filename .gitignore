@@ -1,0 +1,29 @@
+*.pyc
+*.pyo
+__pycache__/
+
+venv/
+env/
+ENV/
+
+.env         # .env файл для хранения секретных ключей
+config.py    # Если это файл с чувствительными данными
+
+*.sqlite3
+*.db
+
+*.log
+*.tmp
+*.swp
+*.bak
+
+celerybeat-schedule    # Файл планировщика Celery
+*.pid                  # Файлы PID, если они генерируются процессами Celery
+*.log                  # Логи, генерируемые Celery
+
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
+Desktop.ini
