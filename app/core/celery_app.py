@@ -1,9 +1,11 @@
 from celery import Celery
 
+from app.core.config import settings
+
 celery_app = Celery(
     "delegators",
-    broker=f"redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL,
 )
 
 celery_app.conf.imports = ("app.tasks.tasks",)

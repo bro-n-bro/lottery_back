@@ -1,14 +1,25 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, NullPool
 from sqlalchemy import pool
 
 from alembic import context
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+user = os.getenv('POSTGRES_USER')
+password = os.getenv('POSTGRES_PASSWORD')
+db_name = os.getenv('POSTGRES_DB')
+host = os.getenv('POSTGRES_HOST', 'db')
+port = os.getenv('POSTGRES_PORT', '5432')
+
+DATABASE_URL = f'postgresql://{user}:{password}@{host}:{port}/{db_name}'
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
+config.set_main_option('sqlalchemy.url', DATABASE_URL)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
@@ -58,9 +69,9 @@ def run_migrations_online() -> None:
 
     """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+        config.get_section(config.config_ini_section),
+        prefix='sqlalchemy.',
+        poolclass=NullPool
     )
 
     with connectable.connect() as connection:
