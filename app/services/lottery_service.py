@@ -30,11 +30,11 @@ def create_lottery(lottery_data, db: Session):
 
 def get_active_lottery(db: Session):
     active_lottery = db.query(models.Lottery).filter(models.Lottery.is_finished == False).first()
-    if not active_lottery:
-        raise HTTPException(status_code=404, detail="No active lottery")
     return active_lottery
 
 def get_initial_delegator(address: str, db: Session):
+    print("aaaaaaaa")
+    print(address)
     initial_delegator = db.query(models.InitialDelegator).filter(models.InitialDelegator.address == address).first()
     if not initial_delegator or not initial_delegator.is_participate:
         raise HTTPException(status_code=400, detail="You don't take part in lotteries")
@@ -80,7 +80,7 @@ def get_total_tickets(db):
 
 
 def get_lottery_info_by_address(address: str, db: Session):
-    get_active_lottery(db)
+    active_lottery = get_active_lottery(db)
 
     initial_delegator = get_initial_delegator(address, db)
 
@@ -92,14 +92,24 @@ def get_lottery_info_by_address(address: str, db: Session):
 
     win_probability = tickets / total_tickets if total_tickets else 0
 
-    return {
-        "address": address,
-        "initial_amount": initial_delegator.amount,
-        "amount": delegator.amount,
-        "tickets": tickets,
-        "win_probability": win_probability,
+    result =  {
+        "address_info": {
+            "address": address,
+            "initial_amount": initial_delegator.amount,
+            "amount": delegator.amount,
+            "delegation_difference": delegator.amount - initial_delegator.amount,
+            "total_tickets": tickets,
+            "delegation_tickets": tickets,
+            "referral_tickets": 0,
+            "win_probability": win_probability,
+        }
     }
-
+    if active_lottery:
+        result["lottery_info"] = {
+            "winners_count": active_lottery.winners_count,
+            "start_at": active_lottery.start_at
+        }
+    return result
 
 def get_addresses_participating_in_lottery(db):
     delegators_alias = aliased(models.Delegator)

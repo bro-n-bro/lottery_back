@@ -13,7 +13,7 @@ celery_app.conf.imports = ("app.tasks.tasks",)
 celery_app.conf.beat_schedule = {
     "fetch_delegators_hourly": {
         "task": "app.tasks.tasks.sync_delegators",
-        "schedule": 3600,
+        "schedule": 10,
     }
 }
 

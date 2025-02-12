@@ -10,6 +10,7 @@ from app.core.dependencies import verify_token
 from app.db import models
 from app.db.database import get_db
 from app.schemas.lottery import LotteryCreate
+from app.services.claim_prizes_service import claim_prizes
 from app.services.initial_delegator_service import participate, fetch_delegators_data
 from app.services.lottery_service import create_lottery, get_lottery_info_by_address, \
     get_addresses_participating_in_lottery, draw_lottery, get_lotteries_with_winners
@@ -54,8 +55,8 @@ def get_lottery_info(lottery_id: str):
     }
 
 @app.post("/initial-delegator/{address}/participate")
-def participate_endpoint(address: str, db: Session = Depends(get_db)):
-    delegator = participate(db, address)
+def participate_endpoint(address: str, referral_code: str = None, db: Session = Depends(get_db)):
+    delegator = participate(db, address, referral_code)
     return {"address": delegator.address, "is_participate": delegator.is_participate}
 
 
@@ -105,7 +106,9 @@ async def draw_lottery_endpoint(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-
+@app.post("/{address}/claim-prizes")
+def claim_prizes_endpoint(address: str, db: Session = Depends(get_db)):
+    return claim_prizes(db, address)
 
 async def lifespan(app: FastAPI):
     celery_app.start()
