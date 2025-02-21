@@ -22,3 +22,15 @@ def claim_prizes(db: Session, address: str):
     db.commit()
 
     return {"message": "Prizes successfully claimed"}
+
+def get_address_prizes(db: Session, address: str):
+    delegator = db.query(InitialDelegator).filter_by(address=address).first()
+    if not delegator:
+        raise HTTPException(status_code=404, detail="Address not found")
+
+    prizes = db.query(Winner).filter_by(initial_delegator_id=delegator.id).all()
+    return [{
+        "lottery_id": prize.lottery_id,
+        "is_main": prize.is_main,
+        "is_claim_prize": prize.is_claim_prize
+    } for prize in prizes]

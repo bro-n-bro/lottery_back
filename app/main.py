@@ -10,7 +10,9 @@ from app.core.dependencies import verify_token
 from app.db import models
 from app.db.database import get_db
 from app.schemas.lottery import LotteryCreate
-from app.services.claim_prizes_service import claim_prizes
+from app.services.claim_prizes_service import claim_prizes, get_address_prizes
+from app.services.delegator_service import get_invited_users, get_stakers_ranking
+from app.services.general import validate_signature
 from app.services.initial_delegator_service import participate, fetch_delegators_data
 from app.services.lottery_service import create_lottery, get_lottery_info_by_address, \
     get_addresses_participating_in_lottery, draw_lottery, get_lotteries_with_winners
@@ -55,7 +57,15 @@ def get_lottery_info(lottery_id: str):
     }
 
 @app.post("/initial-delegator/{address}/participate")
-def participate_endpoint(address: str, referral_code: str = None, db: Session = Depends(get_db)):
+def participate_endpoint(
+        address: str,
+        pubkey: str,
+        signatures: str,
+        referral_code: str = None,
+        db: Session = Depends(get_db)
+):
+    if not validate_signature(pubkey, signatures, address):
+        raise HTTPException(status_code=400, detail="Invalid signature")
     delegator = participate(db, address, referral_code)
     return {"address": delegator.address, "is_participate": delegator.is_participate}
 
@@ -107,8 +117,27 @@ async def draw_lottery_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @app.post("/{address}/claim-prizes")
-def claim_prizes_endpoint(address: str, db: Session = Depends(get_db)):
+def claim_prizes_endpoint(
+    address: str,
+    pubkey: str,
+    signatures: str,
+    db: Session = Depends(get_db)
+):
+    if not validate_signature(pubkey, signatures, address):
+        raise HTTPException(status_code=400, detail="Invalid signature")
     return claim_prizes(db, address)
+
+@app.get("/{address}/prizes")
+def get_prizes(address: str, db: Session = Depends(get_db)):
+    return get_address_prizes(db, address)
+
+@app.get("/address/{address}/invited")
+def invited_users(address: str, db: Session = Depends(get_db)):
+    return get_invited_users(address, db)
+
+@app.get("/stakers/ranking")
+def stakers_ranking(db: Session = Depends(get_db)):
+    return get_stakers_ranking(db)
 
 async def lifespan(app: FastAPI):
     celery_app.start()

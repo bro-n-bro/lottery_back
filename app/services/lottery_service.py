@@ -44,11 +44,11 @@ def get_latest_delegator(address: str, db: Session):
     delegator = db.query(models.Delegator).filter(models.Delegator.address == address)\
         .order_by(models.Delegator.timestamp.desc()).first()
     if not delegator:
-        raise HTTPException(status_code=404, detail="Delegator not found")
+        return models.Delegator(address=address, amount=0, timestamp=func.now())
     return delegator
 
 def calculate_tickets(delegator_amount: int, initial_delegator_amount: int):
-    return (delegator_amount - initial_delegator_amount) // 10
+    return (min(delegator_amount - initial_delegator_amount, 0)) // 10
 
 
 def get_total_tickets(db):
@@ -77,6 +77,13 @@ def get_total_tickets(db):
 
     return total_tickets
 
+
+def get_address_tickets(address: str, db: Session):
+    initial_delegator = get_initial_delegator(address, db)
+
+    delegator = get_latest_delegator(address, db)
+
+    return calculate_tickets(delegator.amount, initial_delegator.amount)
 
 
 def get_lottery_info_by_address(address: str, db: Session):
