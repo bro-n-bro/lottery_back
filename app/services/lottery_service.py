@@ -18,8 +18,7 @@ def create_lottery(lottery_data, db: Session):
             detail="There is already an active lottery"
         )
 
-    link = lottery_data.github_link  # ссылка, полученная из запроса
-
+    link = lottery_data.github_link
     if link:
         try:
             response = requests.get(link)
@@ -87,7 +86,7 @@ def get_total_stacking_tickets(db: Session):
         .scalar()
     )
 
-    return total_tickets or 0  # Возвращаем 0, если нет данных
+    return total_tickets or 0
 
 
 def get_address_tickets(address: str, db: Session):
