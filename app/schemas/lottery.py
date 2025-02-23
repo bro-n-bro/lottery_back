@@ -4,7 +4,7 @@ from typing import List
 from datetime import datetime
 
 class LotteryCreate(BaseModel):
-    winners_count: int
+    github_link: str
     start_at: datetime
 
     class Config:

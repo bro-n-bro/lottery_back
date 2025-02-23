@@ -25,18 +25,22 @@ def get_stakers_ranking(db: Session):
     delegators_alias = aliased(Delegator)
     initial_delegators_alias = aliased(InitialDelegator)
 
+    ticket_expr = (delegators_alias.amount - initial_delegators_alias.amount) // 10
+
     ranking_query = (
         db.query(
             delegators_alias.address,
-            func.coalesce((delegators_alias.amount - initial_delegators_alias.amount) // 10, 0).label("tickets")
+            func.coalesce(ticket_expr, 0).label("tickets")
         )
         .join(
             initial_delegators_alias,
             delegators_alias.address == initial_delegators_alias.address
         )
         .filter(initial_delegators_alias.is_participate == True)
-        .distinct(delegators_alias.address)
-        .order_by(func.coalesce((delegators_alias.amount - initial_delegators_alias.amount) // 10, 0).desc())
+        .filter(delegators_alias.amount - initial_delegators_alias.amount >= 0)
+        .order_by(func.coalesce(ticket_expr, 0).desc())
     ).all()
 
-    return [{"position": index + 1, "address": row.address, "tickets": row.tickets} for index, row in enumerate(ranking_query)]
+    return [{"position": index + 1, "address": row.address, "tickets": row.tickets} for index, row in
+            enumerate(ranking_query)]
+

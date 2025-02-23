@@ -1,6 +1,7 @@
 # main.py
 import random
 
+import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from starlette import status
@@ -13,7 +14,8 @@ from app.schemas.lottery import LotteryCreate
 from app.services.claim_prizes_service import claim_prizes, get_address_prizes
 from app.services.delegator_service import get_invited_users, get_stakers_ranking
 from app.services.general import validate_signature
-from app.services.initial_delegator_service import participate, fetch_delegators_data
+from app.services.initial_delegator_service import participate, fetch_delegators_data, is_token_exist
+from app.services.invitation_service import get_invitation_ranking
 from app.services.lottery_service import create_lottery, get_lottery_info_by_address, \
     get_addresses_participating_in_lottery, draw_lottery, get_lotteries_with_winners
 
@@ -23,38 +25,6 @@ app = FastAPI()
 @app.get('/')
 def read_root():
     return {"message": "Started"}
-
-
-@app.get("/address/{address_id}")
-def get_address_info(address_id: str):
-    return {
-        "address": address_id,
-        "delegated_tokens_after_snapshot": round(random.uniform(0, 1000), 2),
-        "tickets_number": random.randint(0, 20),
-        "win_probability": round(random.uniform(0, 100), 2)
-    }
-
-@app.get("/{lottery_id}")
-def get_lottery_info(lottery_id: str):
-    is_finished = random.choice([True, False])
-
-    winners = []
-    if is_finished:
-        num_winners = random.randint(1, 5)
-        winners = [
-            {
-                "address": f"0x{random.randint(10**15, 10**16 - 1):x}",
-                "is_main_winner": i == 0,  # Только первый - главный победитель
-                "delegated_tokens": round(random.uniform(0, 1000), 2)
-            }
-            for i in range(num_winners)
-        ]
-
-    return {
-        "lottery": lottery_id,
-        "is_finished": is_finished,
-        "winners": winners
-    }
 
 @app.post("/initial-delegator/{address}/participate")
 def participate_endpoint(
@@ -98,7 +68,7 @@ async def get_lottery_info_api(address: str, db: Session = Depends(get_db)):
 @app.get("/lottery/participants")
 async def get_lottery_addresses(db: Session = Depends(get_db)):
     try:
-        addresses = get_addresses_participating_in_lottery(db)  # Вызовем функцию, получающую адреса
+        addresses = get_addresses_participating_in_lottery(db)
         return {"addresses": addresses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -139,6 +109,18 @@ def invited_users(address: str, db: Session = Depends(get_db)):
 def stakers_ranking(db: Session = Depends(get_db)):
     return get_stakers_ranking(db)
 
+@app.get("/inviters/ranking")
+def invitation_ranking(db: Session = Depends(get_db)):
+    return get_invitation_ranking(db)
+
+@app.get("/check_referral_token/{referral_token}")
+def check_referral_token(referral_token: str, db: Session = Depends(get_db)):
+    return {'is_exist': is_token_exist(referral_token, db)}
+
 async def lifespan(app: FastAPI):
     celery_app.start()
     yield
+
+
+if __name__ == '__main__':
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,10 +1,13 @@
 import logging
 import random
+import requests
 
 from sqlalchemy.orm import Session, aliased
 from app.db import models
 from fastapi import HTTPException
 from sqlalchemy import func
+
+from app.db.models import Invitation
 
 
 def create_lottery(lottery_data, db: Session):
@@ -15,9 +18,26 @@ def create_lottery(lottery_data, db: Session):
             detail="There is already an active lottery"
         )
 
+    link = lottery_data.github_link  # ссылка, полученная из запроса
+
+    if link:
+        try:
+            response = requests.get(link)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                winners_count = len(data)
+            else:
+                raise HTTPException(status_code=400, detail="Invalid JSON format. Expected a list.")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error fetching or parsing JSON: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail=f"Github link is required")
+
     new_lottery = models.Lottery(
-        winners_count=lottery_data.winners_count,
+        winners_count=winners_count,
         start_at=lottery_data.start_at,
+        github_link=link,
         is_finished=False
     )
 
@@ -26,7 +46,6 @@ def create_lottery(lottery_data, db: Session):
     db.refresh(new_lottery)
 
     return new_lottery
-
 
 def get_active_lottery(db: Session):
     active_lottery = db.query(models.Lottery).filter(models.Lottery.is_finished == False).first()
@@ -41,41 +60,34 @@ def get_initial_delegator(address: str, db: Session):
     return initial_delegator
 
 def get_latest_delegator(address: str, db: Session):
-    delegator = db.query(models.Delegator).filter(models.Delegator.address == address)\
-        .order_by(models.Delegator.timestamp.desc()).first()
+    delegator = db.query(models.Delegator).filter(models.Delegator.address == address).first()
     if not delegator:
         return models.Delegator(address=address, amount=0, timestamp=func.now())
     return delegator
 
-def calculate_tickets(delegator_amount: int, initial_delegator_amount: int):
-    return (min(delegator_amount - initial_delegator_amount, 0)) // 10
+def calculate_stacking_tickets(delegator_amount: int, initial_delegator_amount: int):
+    return (max(delegator_amount - initial_delegator_amount, 0)) // 10
 
 
-def get_total_tickets(db):
+def get_total_stacking_tickets(db: Session):
     delegators_alias = aliased(models.Delegator)
     initial_delegators_alias = aliased(models.InitialDelegator)
 
-    subquery = (
+    total_tickets = (
         db.query(
-            delegators_alias.address,
-            (delegators_alias.amount - initial_delegators_alias.amount) // 10
+            func.sum((delegators_alias.amount - initial_delegators_alias.amount) // 10)
         )
         .join(
             initial_delegators_alias,
-            delegators_alias.address == initial_delegators_alias.address
+            delegators_alias.address == initial_delegators_alias.address,
+            isouter=False
         )
         .filter(initial_delegators_alias.is_participate == True)
-        .distinct(delegators_alias.address)
-        .order_by(delegators_alias.address, delegators_alias.timestamp.desc())
-        .subquery()
-    )
-
-    total_tickets = (
-        db.query(func.sum(subquery.c[1]))
+        .filter(delegators_alias.amount - initial_delegators_alias.amount > 0)
         .scalar()
     )
 
-    return total_tickets
+    return total_tickets or 0  # Возвращаем 0, если нет данных
 
 
 def get_address_tickets(address: str, db: Session):
@@ -83,8 +95,22 @@ def get_address_tickets(address: str, db: Session):
 
     delegator = get_latest_delegator(address, db)
 
-    return calculate_tickets(delegator.amount, initial_delegator.amount)
+    return calculate_stacking_tickets(delegator.amount, initial_delegator.amount)
 
+def get_invitation_tickets(address, ticket_per_address, invitations_dict):
+    result = 0
+    if address_invitations := invitations_dict.get(address, None):
+        for item in address_invitations:
+            result += ticket_per_address.get(item, 0)
+    return result
+
+
+def get_total_invitation_tickets(ticket_per_address, invitations_dict):
+    result = 0
+    for _, invitees in invitations_dict.items():
+        for address in invitees:
+            result += ticket_per_address.get(address, 0)
+    return result
 
 def get_lottery_info_by_address(address: str, db: Session):
     active_lottery = get_active_lottery(db)
@@ -93,10 +119,16 @@ def get_lottery_info_by_address(address: str, db: Session):
 
     delegator = get_latest_delegator(address, db)
 
-    tickets = calculate_tickets(delegator.amount, initial_delegator.amount)
+    stacking_tickets = calculate_stacking_tickets(delegator.amount, initial_delegator.amount)
+    total_stacking_tickets = get_total_stacking_tickets(db)
 
-    total_tickets = get_total_tickets(db)
+    ticket_per_address = get_tickets_per_address(db)
+    invitations_dict = get_invitations_dict(db)
 
+    invitation_tickets = get_invitation_tickets(address, ticket_per_address, invitations_dict)
+    total_invitation_tickets = get_total_invitation_tickets(ticket_per_address, invitations_dict)
+    total_tickets = total_invitation_tickets + total_stacking_tickets
+    tickets = stacking_tickets + invitation_tickets
     win_probability = tickets / total_tickets if total_tickets else 0
 
     result =  {
@@ -106,15 +138,16 @@ def get_lottery_info_by_address(address: str, db: Session):
             "amount": delegator.amount,
             "delegation_difference": delegator.amount - initial_delegator.amount,
             "total_tickets": tickets,
-            "delegation_tickets": tickets,
-            "referral_tickets": 0,
+            "delegation_tickets": stacking_tickets,
+            "referral_tickets": invitation_tickets,
             "win_probability": win_probability,
         }
     }
     if active_lottery:
         result["lottery_info"] = {
             "winners_count": active_lottery.winners_count,
-            "start_at": active_lottery.start_at
+            "start_at": active_lottery.start_at,
+            "id": active_lottery.id
         }
     return result
 
@@ -232,3 +265,49 @@ def get_lotteries_with_winners(db: Session):
 
     except Exception as e:
         raise Exception(f"Error: {str(e)}")
+
+
+def get_tickets_per_address(db: Session):
+    delegators_alias = aliased(models.Delegator)
+    initial_delegators_alias = aliased(models.InitialDelegator)
+
+    results = (
+        db.query(
+            delegators_alias.address,
+            ((delegators_alias.amount - initial_delegators_alias.amount) // 10).label("tickets")
+        )
+        .join(
+            initial_delegators_alias,
+            delegators_alias.address == initial_delegators_alias.address,
+            isouter=False
+        )
+        .filter(initial_delegators_alias.is_participate == True)
+        .filter(delegators_alias.amount - initial_delegators_alias.amount > 0)
+        .all()
+    )
+
+    tickets_dict = {row.address: row.tickets for row in results}
+    return tickets_dict
+
+
+def get_invitations_dict(db: Session):
+    inviter = aliased(models.InitialDelegator)
+    invitee = aliased(models.InitialDelegator)
+
+    query = (
+        db.query(
+            inviter.address.label("inviter_address"),
+            invitee.address.label("invitee_address")
+        )
+        .join(Invitation, Invitation.inviter_id == inviter.id)
+        .join(invitee, Invitation.invitee_id == invitee.id)
+    )
+
+    invitations_dict = {}
+    for row in query.all():
+        if row.inviter_address in invitations_dict:
+            invitations_dict[row.inviter_address].append(row.invitee_address)
+        else:
+            invitations_dict[row.inviter_address] = [row.invitee_address]
+
+    return invitations_dict

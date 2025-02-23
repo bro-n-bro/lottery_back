@@ -22,6 +22,7 @@ class Lottery(Base):
     start_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     is_finished = Column(Boolean, default=False)
+    github_link = Column(String, nullable=True)
 
     winners = relationship("Winner", back_populates="lottery")
 
