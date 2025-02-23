@@ -152,32 +152,45 @@ def get_lottery_info_by_address(address: str, db: Session):
     return result
 
 def get_addresses_participating_in_lottery(db):
-    delegators_alias = aliased(models.Delegator)
-    initial_delegators_alias = aliased(models.InitialDelegator)
+    stacking_participants = get_participants_by_stakers(db)
+    invitation_participants = get_invitations_by_participants(db)
+    return invitation_participants + stacking_participants
 
-    subquery = (
+def get_invitations_by_participants(db):
+    result = []
+    invitations_dict = get_invitations_dict(db)
+    tickets_per_address = get_tickets_per_address(db)
+    for address, invitations in invitations_dict.items():
+        tickets = 0
+        for invitation in invitations:
+            tickets += tickets_per_address.get(invitation, 0)
+        if tickets > 0:
+            result.extend([address] * tickets)
+    return result
+
+def get_participants_by_stakers(db):
+    delegator = models.Delegator
+    initial_delegator = models.InitialDelegator
+
+    results = (
         db.query(
-            delegators_alias.address,
-            ((delegators_alias.amount - initial_delegators_alias.amount) // 10).label('ticket_count')
+            delegator.address,
+            ((delegator.amount - initial_delegator.amount) // 10).label("ticket_count")
         )
         .join(
-            initial_delegators_alias,
-            delegators_alias.address == initial_delegators_alias.address
+            initial_delegator,
+            delegator.address == initial_delegator.address
         )
-        .filter(initial_delegators_alias.is_participate == True)
-        .distinct(delegators_alias.address)
-        .order_by(delegators_alias.address, delegators_alias.timestamp.desc())
-        .subquery()
+        .filter(initial_delegator.is_participate == True)
+        .all()
     )
 
-    result = db.query(subquery.c.address, subquery.c.ticket_count).all()
-
     addresses = []
-    for address, ticket_count in result:
-        addresses.extend([address] * ticket_count)
+    for address, ticket_count in results:
+        if ticket_count > 0:
+            addresses.extend([address] * ticket_count)
 
     return addresses
-
 
 def draw_lottery(db):
     addresses = get_addresses_participating_in_lottery(db)

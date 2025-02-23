@@ -1,5 +1,6 @@
 # main.py
 import random
+from typing import List
 
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
@@ -10,7 +11,8 @@ from app.core.celery_app import celery_app
 from app.core.dependencies import verify_token
 from app.db import models
 from app.db.database import get_db
-from app.schemas.lottery import LotteryCreate
+from app.db.models import Lottery
+from app.schemas.lottery import LotteryCreate, LotteryResponse
 from app.services.claim_prizes_service import claim_prizes, get_address_prizes
 from app.services.delegator_service import get_invited_users, get_stakers_ranking
 from app.services.general import validate_signature
@@ -116,6 +118,45 @@ def invitation_ranking(db: Session = Depends(get_db)):
 @app.get("/check_referral_token/{referral_token}")
 def check_referral_token(referral_token: str, db: Session = Depends(get_db)):
     return {'is_exist': is_token_exist(referral_token, db)}
+
+@app.get("/lotteries", response_model=List[LotteryResponse])
+def get_lotteries(db: Session = Depends(get_db)):
+    lotteries = db.query(Lottery).all()
+    return lotteries
+
+@app.get("/lotteries/last", response_model=LotteryResponse)
+def get_last_lottery(db: Session = Depends(get_db)):
+    lottery = (
+        db.query(Lottery)
+        .filter(Lottery.is_finished == True)
+        .order_by(Lottery.start_at.desc())
+        .first()
+    )
+    if not lottery:
+        raise HTTPException(status_code=404, detail="No finished lottery found")
+    return lottery
+
+
+@app.get("/lotteries/current", response_model=LotteryResponse)
+def get_current_lottery(db: Session = Depends(get_db)):
+    lottery = (
+        db.query(Lottery)
+        .filter(Lottery.is_finished == False)
+        .first()
+    )
+    if not lottery:
+        raise HTTPException(status_code=404, detail="No current lottery found")
+    return lottery
+
+
+@app.get("/lotteries/{lottery_id}", response_model=LotteryResponse)
+def get_lottery(lottery_id: int, db: Session = Depends(get_db)):
+    lottery = db.query(Lottery).filter(Lottery.id == lottery_id).first()
+    if not lottery:
+        raise HTTPException(status_code=404, detail="Lottery not found")
+    return lottery
+
+
 
 async def lifespan(app: FastAPI):
     celery_app.start()
