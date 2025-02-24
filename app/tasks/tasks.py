@@ -11,6 +11,7 @@ def sync_delegators():
 
     try:
         delegators = get_delegators_from_cosmos()
+        db.query(models.Delegator).delete()
         for delegation in delegators:
             delegator_address = delegation.delegation.delegator_address
             amount = int(delegation.balance.amount) / 1_000_000

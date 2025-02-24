@@ -6,8 +6,8 @@ venv/
 env/
 ENV/
 
-.env         # .env файл для хранения секретных ключей
-config.py    # Если это файл с чувствительными данными
+.env
+config.py
 
 *.sqlite3
 *.db
@@ -17,9 +17,9 @@ config.py    # Если это файл с чувствительными дан
 *.swp
 *.bak
 
-celerybeat-schedule    # Файл планировщика Celery
-*.pid                  # Файлы PID, если они генерируются процессами Celery
-*.log                  # Логи, генерируемые Celery
+celerybeat-schedule
+*.pid
+*.log
 
 .vscode/
 .idea/

@@ -12,7 +12,7 @@ load_dotenv()
 user = os.getenv('POSTGRES_USER')
 password = os.getenv('POSTGRES_PASSWORD')
 db_name = os.getenv('POSTGRES_DB')
-host = os.getenv('POSTGRES_HOST', 'db')
+host = os.getenv('POSTGRES_HOST', 'localhost')
 port = os.getenv('POSTGRES_PORT', '5432')
 
 DATABASE_URL = f'postgresql://{user}:{password}@{host}:{port}/{db_name}'

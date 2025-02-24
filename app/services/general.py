@@ -1,12 +1,21 @@
 import grpc
 from cosmpy.aerial.config import NetworkConfig
 from cosmpy.aerial.client import LedgerClient
+from cosmpy.crypto.keypairs import PublicKey
 from cosmpy.protos.cosmos.staking.v1beta1.query_pb2 import QueryDelegatorDelegationsRequest, \
     QueryValidatorDelegationsRequest
 from cosmpy.protos.cosmos.staking.v1beta1.query_pb2_grpc import QueryStub
 from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageResponse, PageRequest
 
 from app.core.config import settings
+
+def validate_signature(pubkey: str, signatures: str, address: str) -> bool:
+    try:
+        vk = PublicKey(bytes.fromhex(pubkey))
+        msg = b"i'm in brottery"
+        return vk.verify(msg, bytes.fromhex(signatures))
+    except Exception:
+        return False
 
 
 def get_delegators_from_cosmos():

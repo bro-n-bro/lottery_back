@@ -49,7 +49,7 @@ def fetch_delegators_data(db: Session):
 
     for delegation in delegators:
         delegator_address = delegation.delegation.delegator_address
-        amount = int(delegation.balance.amount) / 1_000_000  # Преобразуем uatom в ATOM
+        amount = int(delegation.balance.amount) / 1_000_000
 
         existing_delegator = db.query(models.InitialDelegator).filter(
             models.InitialDelegator.address == delegator_address).first()
@@ -68,3 +68,7 @@ def fetch_delegators_data(db: Session):
             logging.info(f"Delegator {delegator_address} already in db ")
             existing_delegator.amount = amount
             db.commit()
+
+
+def is_token_exist(referral_token: str, db: Session):
+    return bool(db.query(models.InitialDelegator).filter(models.InitialDelegator.referral_token == referral_token).first())
