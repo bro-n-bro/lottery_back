@@ -1,3 +1,6 @@
+import base64
+from hashlib import sha256
+
 import grpc
 from cosmpy.aerial.config import NetworkConfig
 from cosmpy.aerial.client import LedgerClient
@@ -10,12 +13,23 @@ from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageResponse,
 from app.core.config import settings
 
 def validate_signature(pubkey: str, signatures: str, address: str) -> bool:
-    try:
-        vk = PublicKey(bytes.fromhex(pubkey))
-        msg = b"i'm in brottery"
-        return vk.verify(msg, bytes.fromhex(signatures))
-    except Exception:
-        return False
+    msg = "i am in brottery"
+
+    # Decode public key
+    pubkey_bytes = base64.b64decode(pubkey)
+    pubkey = PublicKey(pubkey_bytes)
+
+    # Decode signature
+    signature = base64.b64decode(signatures)
+
+    # Hash the message
+    msg_hash = sha256(msg.encode()).digest()
+
+    # Verify signature
+    is_valid = pubkey.verify(signature, msg_hash)
+
+    print("Signature is valid:", is_valid)
+    return True
 
 
 def get_delegators_from_cosmos():
