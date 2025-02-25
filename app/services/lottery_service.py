@@ -134,6 +134,7 @@ def get_lottery_info_by_address(address: str, db: Session):
         "address_info": {
             "address": address,
             "initial_amount": initial_delegator.amount,
+            "referral_token": initial_delegator.referral_token,
             "amount": delegator.amount,
             "delegation_difference": delegator.amount - initial_delegator.amount,
             "total_tickets": tickets,
