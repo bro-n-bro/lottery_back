@@ -12,6 +12,7 @@ from app.core.dependencies import verify_token
 from app.db import models
 from app.db.database import get_db
 from app.db.models import Lottery
+from app.schemas.initial_delegator import ParticipateRequest
 from app.schemas.lottery import LotteryCreate, LotteryResponse
 from app.services.claim_prizes_service import claim_prizes, get_address_prizes
 from app.services.delegator_service import get_invited_users, get_stakers_ranking
@@ -31,14 +32,12 @@ def read_root():
 @app.post("/initial-delegator/{address}/participate")
 def participate_endpoint(
         address: str,
-        pubkey: str,
-        signatures: str,
-        referral_code: str = None,
+        data: ParticipateRequest,
         db: Session = Depends(get_db)
 ):
-    if not validate_signature(pubkey, signatures, address):
+    if not validate_signature(data.pubkey, data.signatures, address):
         raise HTTPException(status_code=400, detail="Invalid signature")
-    delegator = participate(db, address, referral_code)
+    delegator = participate(db, address, data.referral_code)
     return {"address": delegator.address, "is_participate": delegator.is_participate}
 
 
