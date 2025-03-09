@@ -5,9 +5,10 @@ import requests
 from sqlalchemy.orm import Session, aliased
 from app.db import models
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, delete
 
-from app.db.models import Invitation
+from app.db.models import Invitation, Delegator
+from app.services.general import get_delegator_info
 
 
 def create_lottery(lottery_data, db: Session):
@@ -51,8 +52,6 @@ def get_active_lottery(db: Session):
     return active_lottery
 
 def get_initial_delegator(address: str, db: Session):
-    print("aaaaaaaa")
-    print(address)
     initial_delegator = db.query(models.InitialDelegator).filter(models.InitialDelegator.address == address).first()
     if not initial_delegator or not initial_delegator.is_participate:
         raise HTTPException(status_code=400, detail="You don't take part in lotteries")
@@ -63,6 +62,25 @@ def get_latest_delegator(address: str, db: Session):
     if not delegator:
         return models.Delegator(address=address, amount=0, timestamp=func.now())
     return delegator
+
+def update_delegator_info(db: Session, delegator: Delegator):
+    delegation_info = get_delegator_info(delegator.address)
+
+    if not delegator:
+        return None
+
+    db.execute(delete(Delegator).where(Delegator.address == delegator.address))
+
+    new_delegator = Delegator(
+        address=delegator.address,
+        amount=int(delegation_info.balance.amount) / 1_000_000,
+    )
+
+    db.add(new_delegator)
+    db.commit()
+    db.refresh(new_delegator)
+
+    return new_delegator
 
 def calculate_stacking_tickets(delegator_amount: int, initial_delegator_amount: int):
     return (max(delegator_amount - initial_delegator_amount, 0)) // 10
@@ -117,7 +135,7 @@ def get_lottery_info_by_address(address: str, db: Session):
     initial_delegator = get_initial_delegator(address, db)
 
     delegator = get_latest_delegator(address, db)
-
+    delegator = update_delegator_info(db, delegator)
     stacking_tickets = calculate_stacking_tickets(delegator.amount, initial_delegator.amount)
     total_stacking_tickets = get_total_stacking_tickets(db)
 

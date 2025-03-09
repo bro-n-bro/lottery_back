@@ -6,7 +6,7 @@ from cosmpy.aerial.config import NetworkConfig
 from cosmpy.aerial.client import LedgerClient
 from cosmpy.crypto.keypairs import PublicKey
 from cosmpy.protos.cosmos.staking.v1beta1.query_pb2 import QueryDelegatorDelegationsRequest, \
-    QueryValidatorDelegationsRequest
+    QueryValidatorDelegationsRequest, QueryDelegationRequest
 from cosmpy.protos.cosmos.staking.v1beta1.query_pb2_grpc import QueryStub
 from cosmpy.protos.cosmos.base.query.v1beta1.pagination_pb2 import PageResponse, PageRequest
 
@@ -63,3 +63,22 @@ def get_delegators_from_cosmos():
             break
         pagination = PageRequest(limit=500, key=res.pagination.next_key)
     return delegators
+
+
+def get_delegator_info(delegator_address: str):
+    cosmos_config = NetworkConfig(
+        chain_id="cosmoshub-4",
+        url=settings.GRPC_ADDRESS,
+        fee_minimum_gas_price=0.01,
+        fee_denomination="uatom",
+        staking_denomination="uatom",
+        faucet_url=None
+    )
+
+    client = LedgerClient(cosmos_config)
+    validator_address = "cosmosvaloper106yp7zw35wftheyyv9f9pe69t8rteumjrx52jg"
+
+    req = QueryDelegationRequest(delegator_addr=delegator_address, validator_addr=validator_address)
+    res = client.staking.Delegation(req)
+
+    return res.delegation_response if res else None
