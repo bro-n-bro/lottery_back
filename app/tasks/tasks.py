@@ -22,13 +22,6 @@ def sync_delegators():
             )
             db.add(new_entry)
 
-        # TODO: remove before prod
-        new_entry = models.Delegator(
-            address='cosmos1p4hc20yrucx4hk4lf68wmuzvsa0rrxkuczh2ew',
-            amount=51
-        )
-        db.add(new_entry)
-
         db.commit()
     except Exception as e:
         db.rollback()
