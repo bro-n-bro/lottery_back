@@ -129,6 +129,13 @@ def get_total_invitation_tickets(ticket_per_address, invitations_dict):
             result += ticket_per_address.get(address, 0)
     return result
 
+
+def get_invitee_tickets(address, stacking_tickets, invitations_dict):
+    if any(address in values for values in invitations_dict.values()) and stacking_tickets > 0:
+        return 1
+    else:
+        return 0
+
 def get_lottery_info_by_address(address: str, db: Session):
     active_lottery = get_active_lottery(db)
 
@@ -145,8 +152,9 @@ def get_lottery_info_by_address(address: str, db: Session):
     invitation_tickets = get_invitation_tickets(address, ticket_per_address, invitations_dict)
     total_invitation_tickets = get_total_invitation_tickets(ticket_per_address, invitations_dict)
     total_tickets = total_invitation_tickets + total_stacking_tickets
-    tickets = stacking_tickets + invitation_tickets
-    win_probability = tickets / total_tickets if total_tickets else 0
+    invitee_tickets = get_invitee_tickets(address, stacking_tickets, invitations_dict)
+    tickets = stacking_tickets + invitation_tickets + invitee_tickets
+    win_probability = tickets / len(get_addresses_participating_in_lottery(db)) if total_tickets else 0
 
     result =  {
         "address_info": {
@@ -158,6 +166,7 @@ def get_lottery_info_by_address(address: str, db: Session):
             "total_tickets": tickets,
             "delegation_tickets": stacking_tickets,
             "referral_tickets": invitation_tickets,
+            "invitee_tickets": invitee_tickets,
             "win_probability": win_probability,
         }
     }
@@ -171,10 +180,10 @@ def get_lottery_info_by_address(address: str, db: Session):
 
 def get_addresses_participating_in_lottery(db):
     stacking_participants = get_participants_by_stakers(db)
-    invitation_participants = get_invitations_by_participants(db)
+    invitation_participants = get_invitations_by_participants(db, stacking_participants)
     return invitation_participants + stacking_participants
 
-def get_invitations_by_participants(db):
+def get_invitations_by_participants(db, stacking_participants):
     result = []
     invitations_dict = get_invitations_dict(db)
     tickets_per_address = get_tickets_per_address(db)
@@ -184,7 +193,9 @@ def get_invitations_by_participants(db):
             tickets += tickets_per_address.get(invitation, 0)
         if tickets > 0:
             result.extend([address] * tickets)
-    return result
+    all_invited = {address for addresesses in invitations_dict.values() for address in addresesses}
+    invitee_tickets = list(set(stacking_participants) & all_invited)
+    return result + invitee_tickets
 
 def get_participants_by_stakers(db):
     delegator = models.Delegator
