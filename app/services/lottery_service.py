@@ -66,8 +66,8 @@ def get_latest_delegator(address: str, db: Session):
 def update_delegator_info(db: Session, delegator: Delegator):
     delegation_info = get_delegator_info(delegator.address)
 
-    if not delegator:
-        return None
+    if not delegation_info:
+        return delegator
 
     db.execute(delete(Delegator).where(Delegator.address == delegator.address))
 

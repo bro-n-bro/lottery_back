@@ -79,6 +79,9 @@ def get_delegator_info(delegator_address: str):
     validator_address = "cosmosvaloper106yp7zw35wftheyyv9f9pe69t8rteumjrx52jg"
 
     req = QueryDelegationRequest(delegator_addr=delegator_address, validator_addr=validator_address)
-    res = client.staking.Delegation(req)
+    try:
+        res = client.staking.Delegation(req)
 
-    return res.delegation_response if res else None
+        return res.delegation_response if res else None
+    except Exception as e:
+        return None
