@@ -18,6 +18,8 @@ def participate(db: Session, address: str, referral_code: str = None):
     else:
         delegator = InitialDelegator(address=address, amount=0, is_participate=True)
         db.add(delegator)
+        db.commit()
+        db.refresh(delegator)
     while True:
         new_token = InitialDelegator.generate_referral_token()
         if not db.query(InitialDelegator).filter_by(referral_token=new_token).first():
