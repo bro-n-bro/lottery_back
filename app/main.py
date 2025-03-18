@@ -35,8 +35,8 @@ def participate_endpoint(
         data: ParticipateRequest,
         db: Session = Depends(get_db)
 ):
-    # if not validate_signature(data.pubkey, data.signatures, address):
-    #     raise HTTPException(status_code=400, detail="Invalid signature")
+    if not validate_signature(data.pubkey, data.signatures, address):
+        raise HTTPException(status_code=400, detail="Invalid signature")
     delegator = participate(db, address, data.referral_code)
     return {"address": delegator.address, "is_participate": delegator.is_participate}
 
