@@ -7,7 +7,8 @@ from app.db import models
 from fastapi import HTTPException
 from sqlalchemy import func, delete
 
-from app.db.models import Invitation, Delegator
+from app.db.models import Invitation, Delegator, InitialDelegator, Lottery
+from app.schemas.lottery import LotteryResponse, WinnerResponse, InitialDelegatorResponse
 from app.services.general import get_delegator_info
 
 
@@ -353,3 +354,55 @@ def get_invitations_dict(db: Session):
             invitations_dict[row.inviter_address] = [row.invitee_address]
 
     return invitations_dict
+
+
+def process_lottery(lottery: Lottery, db: Session) -> LotteryResponse:
+    winner_addresses = [winner.initial_delegator.address for winner in lottery.winners]
+
+    delegators = db.query(Delegator).filter(Delegator.address.in_(winner_addresses)).all()
+    initial_delegators = db.query(InitialDelegator).filter(InitialDelegator.address.in_(winner_addresses)).all()
+
+    delegator_dict = {d.address: d.amount for d in delegators}
+    initial_delegator_dict = {idg.address: idg.amount for idg in initial_delegators}
+
+    ticket_per_address = get_tickets_per_address(db)
+    invitations_dict = get_invitations_dict(db)
+
+    winners_response = []
+    for winner in lottery.winners:
+        address = winner.initial_delegator.address
+        initial_amount = initial_delegator_dict.get(address, 0)
+        current_amount = delegator_dict.get(address, 0)
+        amount_difference = current_amount - initial_amount
+
+        stacking_tickets = calculate_stacking_tickets(current_amount, initial_amount)
+        invitation_tickets = get_invitation_tickets(address, ticket_per_address, invitations_dict)
+        invitee_tickets = get_invitee_tickets(address, stacking_tickets, invitations_dict)
+        total_tickets_winner = stacking_tickets + invitation_tickets + invitee_tickets
+
+        winners_response.append(WinnerResponse(
+            id=winner.id,
+            lottery_id=winner.lottery_id,
+            initial_delegator_id=winner.initial_delegator_id,
+            is_main=winner.is_main,
+            is_claim_prize=winner.is_claim_prize,
+            initial_delegator=InitialDelegatorResponse(
+                id=winner.initial_delegator.id,
+                address=winner.initial_delegator.address,
+                amount=winner.initial_delegator.amount,
+                is_participate=winner.initial_delegator.is_participate,
+                referral_token=winner.initial_delegator.referral_token
+            ),
+            amount_difference=amount_difference,
+            total_tickets=total_tickets_winner
+        ))
+
+    return LotteryResponse(
+        id=lottery.id,
+        winners_count=lottery.winners_count,
+        start_at=lottery.start_at,
+        created_at=lottery.created_at,
+        is_finished=lottery.is_finished,
+        github_link=lottery.github_link,
+        winners=winners_response
+    )

@@ -27,6 +27,8 @@ class WinnerResponse(BaseModel):
     is_main: bool
     is_claim_prize: bool
     initial_delegator: InitialDelegatorResponse
+    amount_difference: int
+    total_tickets: int
 
     class Config:
         orm_mode = True
